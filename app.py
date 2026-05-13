@@ -80,30 +80,52 @@ if survey_file and map_file:
     # -----------------------
     # TAB 2: Cross-Tabs
     # -----------------------
-    with tab2:
+   with tab2:
     st.header("Cross-Tab Builder")
 
     st.subheader("Step 1: Apply Filters")
 
-    # --- Dynamic filter variable ---
-    filter_var = st.selectbox(
-        "Select filter variable",
-        df.columns
-    )
-
-    filter_values = st.multiselect(
-        "Select values",
-        df[filter_var].dropna().unique()
-    )
-
     df_filtered = df.copy()
 
-    if filter_values:
-        df_filtered = df_filtered[df_filtered[filter_var].isin(filter_values)]
+    # --- MULTI FILTER BUILDER ---
+    num_filters = st.number_input(
+        "How many filters do you want?",
+        min_value=1,
+        max_value=5,
+        value=2
+    )
+
+    selected_filters = []
+
+    for i in range(num_filters):
+        st.markdown(f"**Filter {i+1}**")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            filter_var = st.selectbox(
+                f"Variable {i+1}",
+                df.columns,
+                key=f"var_{i}"
+            )
+
+        with col2:
+            filter_vals = st.multiselect(
+                f"Values {i+1}",
+                df[filter_var].dropna().unique(),
+                key=f"val_{i}"
+            )
+
+        selected_filters.append((filter_var, filter_vals))
+
+    # --- APPLY ALL FILTERS ---
+    for var, vals in selected_filters:
+        if vals:
+            df_filtered = df_filtered[df_filtered[var].isin(vals)]
 
     st.write(f"Filtered N = {len(df_filtered)}")
 
-    # --- Crosstab builder ---
+    # --- CROSSTAB ---
     st.subheader("Step 2: Build Crosstab")
 
     var1 = st.selectbox("Row Variable", df.columns, key="row")

@@ -149,35 +149,92 @@ if survey_file and map_file:
     with tab3:
         st.header("Descriptives Engine")
 
-        sel_pillar = st.selectbox("Pillar", ["All"] + [
+        st.subheader("Step 1: Apply Filters")
+
+        df_filtered = df.copy()
+
+        # --- MULTI FILTERS ---
+        num_filters = st.number_input(
+            "How many filters?",
+            min_value=1,
+            max_value=5,
+            value=2,
+            key="desc_filters"
+        )
+
+        selected_filters = []
+
+        for i in range(num_filters):
+            st.markdown(f"**Filter {i+1}**")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                filter_var = st.selectbox(
+                    f"Variable {i+1}",
+                    df.columns,
+                    key=f"desc_var_{i}"
+                )
+
+            with col2:
+                filter_vals = st.multiselect(
+                    f"Values {i+1}",
+                    df[filter_var].dropna().unique(),
+                    key=f"desc_val_{i}"
+                )
+
+            selected_filters.append((filter_var, filter_vals))
+
+        # Apply filters
+        for var, vals in selected_filters:
+            if vals:
+                df_filtered = df_filtered[df_filtered[var].isin(vals)]
+
+        st.write(f"Filtered N = {len(df_filtered)}")
+
+        # --- ITEM FILTERING ---
+        st.subheader("Step 2: Select Items")
+
+        pillars = [
             "General","Educator Prep","Leadership","HQIM",
             "Effective Instruction","Professional Learning",
             "Families","Assessment"
-        ])
+        ]
+
+        sel_pillar = st.selectbox(
+            "Select Pillar",
+            ["All"] + pillars,
+            key="desc_pillar"
+        )
 
         subset = map_df.copy()
 
         if sel_pillar != "All":
             subset = subset[subset[sel_pillar].notna()]
 
-        questions = [q for q in subset.index if q in df.columns]
+        questions = [q for q in subset.index if q in df_filtered.columns]
 
-        st.write(f"{len(questions)} items")
+        st.write(f"{len(questions)} items selected")
+
+        # --- DESCRIPTIVES OUTPUT ---
+        st.subheader("Step 3: Results")
 
         results = []
 
         for q in questions:
-            vc = df[q].value_counts(normalize=True)
+            vc = df_filtered[q].value_counts(normalize=True)
+
             for resp, val in vc.items():
                 results.append({
                     "Question": map_df.loc[q, "Question or prompt"],
                     "Response": resp,
-                    "Percent": val
+                    "Percent": round(val, 3)
                 })
 
         res_df = pd.DataFrame(results)
-        st.dataframe(res_df)
 
+        st.dataframe(res_df)
+        
     # -----------------------
     # TAB 4: Stakeholder Comparison
     # -----------------------

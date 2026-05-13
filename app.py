@@ -20,35 +20,34 @@ if survey_file and map_file:
     map_df = map_df.set_index("Question$")
 
     # -----------------------
-    # CREATE BLOCK TABS
+    # BLOCK TABS
     # -----------------------
     blocks = map_df["Block"].dropna().unique().tolist()
     tabs = st.tabs(blocks)
 
     # -----------------------
-    # LOOP THROUGH BLOCKS
+    # LOOP BLOCKS
     # -----------------------
     for i, block in enumerate(blocks):
 
-        with tabs[i].header(block):
+        with tabsst.header(block)
 
-            # Filter items for this block
+            # Filter items
             block_items = map_df[map_df["Block"] == block]
             questions = [q for q in block_items.index if q in df.columns]
 
-            # ✅ AUTO-FILTER RESPONDENTS BY STAKEHOLDER
+            # Auto-filter respondents
             stakeholders_for_block = block_items["Stakeholder"].dropna().unique()
 
             df_block = df.copy()
-
             if "Q1.2" in df.columns:
                 df_block = df_block[df_block["Q1.2"].isin(stakeholders_for_block)]
 
-            st.write(f"Responses in this block: {len(df_block)}")
-            st.write(f"Items in this block: {len(questions)}")
+            st.write(f"Responses: {len(df_block)}")
+            st.write(f"Items: {len(questions)}")
 
             # -----------------------
-            # SUB-TABS
+            # SUBTABS
             # -----------------------
             subtab1, subtab2, subtab3 = st.tabs([
                 "Explore",
@@ -56,10 +55,11 @@ if survey_file and map_file:
                 "Descriptives"
             ])
 
-            # =======================
-            # EXPLORE TAB
-            # =======================
+            # ======================
+            # EXPLORE
+            # ======================
             with subtab1:
+
                 st.subheader("Explore Item")
 
                 question_labels = {
@@ -69,7 +69,7 @@ if survey_file and map_file:
 
                 selected_q = st.selectbox(
                     "Select Question",
-                    options=questions,
+                    questions,
                     format_func=lambda x: question_labels[x],
                     key=f"explore_q_{i}"
                 )
@@ -84,7 +84,7 @@ if survey_file and map_file:
                     counts.columns = ["Response", "Count"]
 
                     fig = px.bar(counts, x="Response", y="Count")
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, key=f"explore_plot_{i}")
 
                 else:
                     counts = {c: df_block[c].notna().sum() for c in multi_cols}
@@ -95,28 +95,27 @@ if survey_file and map_file:
                     })
 
                     fig = px.bar(plot_df, x="Option", y="Count")
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, key=f"explore_multi_plot_{i}")
 
-            # =======================
+            # ======================
             # CROSS-TABS
-            # =======================
+            # ======================
             with subtab2:
+
                 st.subheader("Cross-Tab Builder")
 
                 df_filtered = df_block.copy()
 
-                # MULTI FILTERS
                 num_filters = st.number_input(
                     "How many filters?",
-                    min_value=1,
-                    max_value=5,
-                    value=2,
+                    1, 5, 2,
                     key=f"ct_filters_{i}"
                 )
 
                 selected_filters = []
 
                 for j in range(num_filters):
+
                     st.markdown(f"**Filter {j+1}**")
 
                     col1, col2 = st.columns(2)
@@ -144,18 +143,8 @@ if survey_file and map_file:
 
                 st.write(f"Filtered N = {len(df_filtered)}")
 
-                # Crosstab
-                var1 = st.selectbox(
-                    "Row Variable",
-                    questions,
-                    key=f"row_{i}"
-                )
-
-                var2 = st.selectbox(
-                    "Column Variable",
-                    questions,
-                    key=f"col_{i}"
-                )
+                var1 = st.selectbox("Row Variable", questions, key=f"row_{i}")
+                var2 = st.selectbox("Column Variable", questions, key=f"col_{i}")
 
                 normalize = st.selectbox(
                     "Normalize",
@@ -173,28 +162,27 @@ if survey_file and map_file:
                 st.dataframe(ct)
 
                 fig = px.imshow(ct, text_auto=True, aspect="auto")
-                st.plotly_chart(fig)
+                st.plotly_chart(fig, key=f"ct_plot_{i}")
 
-            # =======================
+            # ======================
             # DESCRIPTIVES
-            # =======================
+            # ======================
             with subtab3:
+
                 st.subheader("Descriptives Engine")
 
                 df_filtered = df_block.copy()
 
-                # MULTI FILTERS
                 num_filters = st.number_input(
                     "How many filters?",
-                    min_value=1,
-                    max_value=5,
-                    value=2,
+                    1, 5, 2,
                     key=f"desc_filters_{i}"
                 )
 
                 selected_filters = []
 
                 for j in range(num_filters):
+
                     st.markdown(f"**Filter {j+1}**")
 
                     col1, col2 = st.columns(2)
@@ -246,7 +234,6 @@ if survey_file and map_file:
 
                 st.write(f"{len(questions_subset)} items selected")
 
-                # Results
                 results = []
 
                 for q in questions_subset:

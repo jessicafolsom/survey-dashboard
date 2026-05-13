@@ -30,7 +30,7 @@ if survey_file and map_file:
     # -----------------------
     for i, block in enumerate(blocks):
 
-        with tabsst.header(block)
+        with tabsst.header(block):
 
             # Filter items
             block_items = map_df[map_df["Block"] == block]

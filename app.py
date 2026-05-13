@@ -11,7 +11,6 @@ map_file = st.file_uploader("Upload Item Map", type=["xlsx"])
 
 if survey_file and map_file:
 
-    # Load data
     df = pd.read_excel(survey_file, sheet_name="Sheet0")
     df = df.iloc[1:].reset_index(drop=True)
 
@@ -19,232 +18,253 @@ if survey_file and map_file:
     map_df = item_map.dropna(subset=["Question$"]).copy()
     map_df = map_df.set_index("Question$")
 
-    # -----------------------
-    # BLOCK TABS
-    # -----------------------
-    blocks = map_df["Block"].dropna().unique().tolist()
-    tabs = st.tabs(blocks)
+    # Sidebar filters
+    st.sidebar.header("Filters")
+
+    stakeholder_col = "Q1.2"
+    stakeholders = st.sidebar.multiselect(
+        "Respondent Stakeholder",
+        df[stakeholder_col].dropna().unique(),
+        default=df[stakeholder_col].dropna().unique()
+    )
+    df = df[df[stakeholder_col].isin(stakeholders)]
+
+    # Tabs
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Explore Item",
+        "Cross-Tabs",
+        "Descriptives",
+        "Stakeholder Comparison"
+    ])
 
     # -----------------------
-    # LOOP BLOCKS
+    # TAB 1: Explore Item
     # -----------------------
-    for i, block in enumerate(blocks):
+    with tab1:
+        st.header("Explore Item")
 
-        with tabsst.header(block):
+        question_labels = {
+            q: map_df.loc[q, "Question or prompt"]
+            for q in map_df.index if q in df.columns
+        }
 
-            # Filter items
-            block_items = map_df[map_df["Block"] == block]
-            questions = [q for q in block_items.index if q in df.columns]
+        selected_q = st.selectbox(
+            "Select Question",
+            options=list(question_labels.keys()),
+            format_func=lambda x: question_labels[x]
+        )
 
-            # Auto-filter respondents
-            stakeholders_for_block = block_items["Stakeholder"].dropna().unique()
+        base = selected_q.split("_")[0]
+        multi_cols = [c for c in df.columns if c.startswith(base + "_")]
 
-            df_block = df.copy()
-            if "Q1.2" in df.columns:
-                df_block = df_block[df_block["Q1.2"].isin(stakeholders_for_block)]
+        st.subheader(question_labels[selected_q])
 
-            st.write(f"Responses: {len(df_block)}")
-            st.write(f"Items: {len(questions)}")
+        if len(multi_cols) <= 1:
+            counts = df[selected_q].value_counts().reset_index()
+            counts.columns = ["Response", "Count"]
 
-            # -----------------------
-            # SUBTABS
-            # -----------------------
-            subtab1, subtab2, subtab3 = st.tabs([
-                "Explore",
-                "Cross-Tabs",
-                "Descriptives"
-            ])
+            fig = px.bar(counts, x="Response", y="Count")
+            st.plotly_chart(fig, use_container_width=True)
 
-            # ======================
-            # EXPLORE
-            # ======================
-            with subtab1:
+        else:
+            counts = {c: df[c].notna().sum() for c in multi_cols}
 
-                st.subheader("Explore Item")
+            plot_df = pd.DataFrame({
+                "Option": list(counts.keys()),
+                "Count": list(counts.values())
+            })
 
-                question_labels = {
-                    q: map_df.loc[q, "Question or prompt"]
-                    for q in questions
-                }
+            fig = px.bar(plot_df, x="Option", y="Count")
+            st.plotly_chart(fig, use_container_width=True)
 
-                selected_q = st.selectbox(
-                    "Select Question",
-                    questions,
-                    format_func=lambda x: question_labels[x],
-                    key=f"explore_q_{i}"
+    # -----------------------
+    # TAB 2: Cross-Tabs
+    # -----------------------
+    with tab2:
+        st.header("Cross-Tab Builder")
+
+        st.subheader("Step 1: Apply Filters")
+
+        df_filtered = df.copy()
+
+        num_filters = st.number_input(
+            "How many filters do you want?",
+            min_value=1,
+            max_value=5,
+            value=2
+        )
+
+        selected_filters = []
+
+        for i in range(num_filters):
+            st.markdown(f"**Filter {i+1}**")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                filter_var = st.selectbox(
+                    f"Variable {i+1}",
+                    df.columns,
+                    key=f"var_{i}"
                 )
 
-                base = selected_q.split("_")[0]
-                multi_cols = [c for c in questions if c.startswith(base + "_")]
-
-                st.write(question_labels[selected_q])
-
-                if len(multi_cols) <= 1:
-                    counts = df_block[selected_q].value_counts().reset_index()
-                    counts.columns = ["Response", "Count"]
-
-                    fig = px.bar(counts, x="Response", y="Count")
-                    st.plotly_chart(fig, use_container_width=True, key=f"explore_plot_{i}")
-
-                else:
-                    counts = {c: df_block[c].notna().sum() for c in multi_cols}
-
-                    plot_df = pd.DataFrame({
-                        "Option": list(counts.keys()),
-                        "Count": list(counts.values())
-                    })
-
-                    fig = px.bar(plot_df, x="Option", y="Count")
-                    st.plotly_chart(fig, use_container_width=True, key=f"explore_multi_plot_{i}")
-
-            # ======================
-            # CROSS-TABS
-            # ======================
-            with subtab2:
-
-                st.subheader("Cross-Tab Builder")
-
-                df_filtered = df_block.copy()
-
-                num_filters = st.number_input(
-                    "How many filters?",
-                    1, 5, 2,
-                    key=f"ct_filters_{i}"
+            with col2:
+                filter_vals = st.multiselect(
+                    f"Values {i+1}",
+                    df[filter_var].dropna().unique(),
+                    key=f"val_{i}"
                 )
 
-                selected_filters = []
+            selected_filters.append((filter_var, filter_vals))
 
-                for j in range(num_filters):
+        for var, vals in selected_filters:
+            if vals:
+                df_filtered = df_filtered[df_filtered[var].isin(vals)]
 
-                    st.markdown(f"**Filter {j+1}**")
+        st.write(f"Filtered N = {len(df_filtered)}")
 
-                    col1, col2 = st.columns(2)
+        st.subheader("Step 2: Build Crosstab")
 
-                    with col1:
-                        filter_var = st.selectbox(
-                            f"Variable {j+1}",
-                            df_block.columns,
-                            key=f"ct_var_{i}_{j}"
-                        )
+        var1 = st.selectbox("Row Variable", df.columns, key="row")
+        var2 = st.selectbox("Column Variable", df.columns, key="col")
 
-                    with col2:
-                        filter_vals = st.multiselect(
-                            f"Values {j+1}",
-                            df_block[filter_var].dropna().unique(),
-                            key=f"ct_val_{i}_{j}"
-                        )
+        normalize = st.selectbox("Normalize", ["None", "Row", "Column"])
 
-                    selected_filters.append((filter_var, filter_vals))
+        if normalize == "Row":
+            ct = pd.crosstab(df_filtered[var1], df_filtered[var2], normalize="index")
+        elif normalize == "Column":
+            ct = pd.crosstab(df_filtered[var1], df_filtered[var2], normalize="columns")
+        else:
+            ct = pd.crosstab(df_filtered[var1], df_filtered[var2])
 
-                # Apply filters
-                for var, vals in selected_filters:
-                    if vals:
-                        df_filtered = df_filtered[df_filtered[var].isin(vals)]
+        st.dataframe(ct)
 
-                st.write(f"Filtered N = {len(df_filtered)}")
+        fig = px.imshow(ct, text_auto=True, aspect="auto")
+        st.plotly_chart(fig)
 
-                var1 = st.selectbox("Row Variable", questions, key=f"row_{i}")
-                var2 = st.selectbox("Column Variable", questions, key=f"col_{i}")
 
-                normalize = st.selectbox(
-                    "Normalize",
-                    ["None", "Row", "Column"],
-                    key=f"norm_{i}"
+    # -----------------------
+    # TAB 3: Descriptives
+    # -----------------------
+    with tab3:
+        st.header("Descriptives Engine")
+
+        st.subheader("Step 1: Apply Filters")
+
+        df_filtered = df.copy()
+
+        # --- MULTI FILTERS ---
+        num_filters = st.number_input(
+            "How many filters?",
+            min_value=1,
+            max_value=5,
+            value=2,
+            key="desc_filters"
+        )
+
+        selected_filters = []
+
+        for i in range(num_filters):
+            st.markdown(f"**Filter {i+1}**")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                filter_var = st.selectbox(
+                    f"Variable {i+1}",
+                    df.columns,
+                    key=f"desc_var_{i}"
                 )
 
-                if normalize == "Row":
-                    ct = pd.crosstab(df_filtered[var1], df_filtered[var2], normalize="index")
-                elif normalize == "Column":
-                    ct = pd.crosstab(df_filtered[var1], df_filtered[var2], normalize="columns")
-                else:
-                    ct = pd.crosstab(df_filtered[var1], df_filtered[var2])
-
-                st.dataframe(ct)
-
-                fig = px.imshow(ct, text_auto=True, aspect="auto")
-                st.plotly_chart(fig, key=f"ct_plot_{i}")
-
-            # ======================
-            # DESCRIPTIVES
-            # ======================
-            with subtab3:
-
-                st.subheader("Descriptives Engine")
-
-                df_filtered = df_block.copy()
-
-                num_filters = st.number_input(
-                    "How many filters?",
-                    1, 5, 2,
-                    key=f"desc_filters_{i}"
+            with col2:
+                filter_vals = st.multiselect(
+                    f"Values {i+1}",
+                    df[filter_var].dropna().unique(),
+                    key=f"desc_val_{i}"
                 )
 
-                selected_filters = []
+            selected_filters.append((filter_var, filter_vals))
 
-                for j in range(num_filters):
+        # Apply filters
+        for var, vals in selected_filters:
+            if vals:
+                df_filtered = df_filtered[df_filtered[var].isin(vals)]
 
-                    st.markdown(f"**Filter {j+1}**")
+        st.write(f"Filtered N = {len(df_filtered)}")
 
-                    col1, col2 = st.columns(2)
+        # --- ITEM FILTERING ---
+        st.subheader("Step 2: Select Items")
 
-                    with col1:
-                        filter_var = st.selectbox(
-                            f"Variable {j+1}",
-                            df_block.columns,
-                            key=f"desc_var_{i}_{j}"
-                        )
+        pillars = [
+            "General","Educator Prep","Leadership","HQIM",
+            "Effective Instruction","Professional Learning",
+            "Families","Assessment"
+        ]
 
-                    with col2:
-                        filter_vals = st.multiselect(
-                            f"Values {j+1}",
-                            df_block[filter_var].dropna().unique(),
-                            key=f"desc_val_{i}_{j}"
-                        )
+        sel_pillar = st.selectbox(
+            "Select Pillar",
+            ["All"] + pillars,
+            key="desc_pillar"
+        )
 
-                    selected_filters.append((filter_var, filter_vals))
+        subset = map_df.copy()
 
-                # Apply filters
-                for var, vals in selected_filters:
-                    if vals:
-                        df_filtered = df_filtered[df_filtered[var].isin(vals)]
+        if sel_pillar != "All":
+            subset = subset[subset[sel_pillar].notna()]
 
-                st.write(f"Filtered N = {len(df_filtered)}")
+        questions = [q for q in subset.index if q in df_filtered.columns]
 
-                # Pillar filter
-                pillars = [
-                    "General","Educator Prep","Leadership","HQIM",
-                    "Effective Instruction","Professional Learning",
-                    "Families","Assessment"
-                ]
+        st.write(f"{len(questions)} items selected")
 
-                sel_pillar = st.selectbox(
-                    "Select Pillar",
-                    ["All"] + pillars,
-                    key=f"pillar_{i}"
-                )
+        # --- DESCRIPTIVES OUTPUT ---
+        st.subheader("Step 3: Results")
 
-                subset = block_items.copy()
+        results = []
 
-                if sel_pillar != "All":
-                    subset = subset[subset[sel_pillar].notna()]
+        for q in questions:
+            vc = df_filtered[q].value_counts(normalize=True)
 
-                questions_subset = [
-                    q for q in subset.index if q in df_filtered.columns
-                ]
+            for resp, val in vc.items():
+                results.append({
+                    "Question": map_df.loc[q, "Question or prompt"],
+                    "Response": resp,
+                    "Percent": round(val, 3)
+                })
 
-                st.write(f"{len(questions_subset)} items selected")
+        res_df = pd.DataFrame(results)
 
-                results = []
+        st.dataframe(res_df)
+        
+    # -----------------------
+    # TAB 4: Stakeholder Comparison
+    # -----------------------
+    with tab4:
+        st.header("Cross-Stakeholder Comparison")
 
-                for q in questions_subset:
-                    vc = df_filtered[q].value_counts(normalize=True)
+        prompts = map_df["Question or prompt"].dropna().unique()
 
-                    for resp, val in vc.items():
-                        results.append({
-                            "Question": map_df.loc[q, "Question or prompt"],
-                            "Response": resp,
-                            "Percent": round(val, 3)
-                        })
+        selected_prompt = st.selectbox("Select Question Prompt", prompts)
 
-                res_df = pd.DataFrame(results)
-                st.dataframe(res_df)
+        cols = map_df[
+            map_df["Question or prompt"] == selected_prompt
+        ].index.tolist()
+
+        cols = [c for c in cols if c in df.columns]
+
+        if len(cols) > 1:
+
+            comp = {}
+
+            for c in cols:
+                label = map_df.loc[c, "Stakeholder"]
+                comp[label] = df[c].value_counts(normalize=True)
+
+            comp_df = pd.DataFrame(comp).fillna(0)
+
+            st.dataframe(comp_df)
+
+            fig = px.bar(comp_df, barmode="group")
+            st.plotly_chart(fig)
+
+        else:
+            st.write("No comparable stakeholders.")

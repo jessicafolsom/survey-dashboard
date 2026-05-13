@@ -81,24 +81,47 @@ if survey_file and map_file:
     # TAB 2: Cross-Tabs
     # -----------------------
     with tab2:
-        st.header("Cross-Tab Builder")
+    st.header("Cross-Tab Builder")
 
-        var1 = st.selectbox("Row Variable", df.columns)
-        var2 = st.selectbox("Column Variable", df.columns)
+    st.subheader("Step 1: Apply Filters")
 
-        normalize = st.selectbox("Normalize", ["None", "Row", "Column"])
+    # --- Dynamic filter variable ---
+    filter_var = st.selectbox(
+        "Select filter variable",
+        df.columns
+    )
 
-        if normalize == "Row":
-            ct = pd.crosstab(df[var1], df[var2], normalize="index")
-        elif normalize == "Column":
-            ct = pd.crosstab(df[var1], df[var2], normalize="columns")
-        else:
-            ct = pd.crosstab(df[var1], df[var2])
+    filter_values = st.multiselect(
+        "Select values",
+        df[filter_var].dropna().unique()
+    )
 
-        st.dataframe(ct)
+    df_filtered = df.copy()
 
-        fig = px.imshow(ct, text_auto=True, aspect="auto")
-        st.plotly_chart(fig)
+    if filter_values:
+        df_filtered = df_filtered[df_filtered[filter_var].isin(filter_values)]
+
+    st.write(f"Filtered N = {len(df_filtered)}")
+
+    # --- Crosstab builder ---
+    st.subheader("Step 2: Build Crosstab")
+
+    var1 = st.selectbox("Row Variable", df.columns, key="row")
+    var2 = st.selectbox("Column Variable", df.columns, key="col")
+
+    normalize = st.selectbox("Normalize", ["None", "Row", "Column"])
+
+    if normalize == "Row":
+        ct = pd.crosstab(df_filtered[var1], df_filtered[var2], normalize="index")
+    elif normalize == "Column":
+        ct = pd.crosstab(df_filtered[var1], df_filtered[var2], normalize="columns")
+    else:
+        ct = pd.crosstab(df_filtered[var1], df_filtered[var2])
+
+    st.dataframe(ct)
+
+    fig = px.imshow(ct, text_auto=True, aspect="auto")
+    st.plotly_chart(fig)
 
     # -----------------------
     # TAB 3: Descriptives

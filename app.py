@@ -80,70 +80,68 @@ if survey_file and map_file:
     # -----------------------
     # TAB 2: Cross-Tabs
     # -----------------------
-   with tab2:
-    st.header("Cross-Tab Builder")
+    with tab2:
+        st.header("Cross-Tab Builder")
 
-    st.subheader("Step 1: Apply Filters")
+        st.subheader("Step 1: Apply Filters")
 
-    df_filtered = df.copy()
+        df_filtered = df.copy()
 
-    # --- MULTI FILTER BUILDER ---
-    num_filters = st.number_input(
-        "How many filters do you want?",
-        min_value=1,
-        max_value=5,
-        value=2
-    )
+        num_filters = st.number_input(
+            "How many filters do you want?",
+            min_value=1,
+            max_value=5,
+            value=2
+        )
 
-    selected_filters = []
+        selected_filters = []
 
-    for i in range(num_filters):
-        st.markdown(f"**Filter {i+1}**")
+        for i in range(num_filters):
+            st.markdown(f"**Filter {i+1}**")
 
-        col1, col2 = st.columns(2)
+            col1, col2 = st.columns(2)
 
-        with col1:
-            filter_var = st.selectbox(
-                f"Variable {i+1}",
-                df.columns,
-                key=f"var_{i}"
-            )
+            with col1:
+                filter_var = st.selectbox(
+                    f"Variable {i+1}",
+                    df.columns,
+                    key=f"var_{i}"
+                )
 
-        with col2:
-            filter_vals = st.multiselect(
-                f"Values {i+1}",
-                df[filter_var].dropna().unique(),
-                key=f"val_{i}"
-            )
+            with col2:
+                filter_vals = st.multiselect(
+                    f"Values {i+1}",
+                    df[filter_var].dropna().unique(),
+                    key=f"val_{i}"
+                )
 
-        selected_filters.append((filter_var, filter_vals))
+            selected_filters.append((filter_var, filter_vals))
 
-    # --- APPLY ALL FILTERS ---
-    for var, vals in selected_filters:
-        if vals:
-            df_filtered = df_filtered[df_filtered[var].isin(vals)]
+        for var, vals in selected_filters:
+            if vals:
+                df_filtered = df_filtered[df_filtered[var].isin(vals)]
 
-    st.write(f"Filtered N = {len(df_filtered)}")
+        st.write(f"Filtered N = {len(df_filtered)}")
 
-    # --- CROSSTAB ---
-    st.subheader("Step 2: Build Crosstab")
+        st.subheader("Step 2: Build Crosstab")
 
-    var1 = st.selectbox("Row Variable", df.columns, key="row")
-    var2 = st.selectbox("Column Variable", df.columns, key="col")
+        var1 = st.selectbox("Row Variable", df.columns, key="row")
+        var2 = st.selectbox("Column Variable", df.columns, key="col")
 
-    normalize = st.selectbox("Normalize", ["None", "Row", "Column"])
+        normalize = st.selectbox("Normalize", ["None", "Row", "Column"])
 
-    if normalize == "Row":
-        ct = pd.crosstab(df_filtered[var1], df_filtered[var2], normalize="index")
-    elif normalize == "Column":
-        ct = pd.crosstab(df_filtered[var1], df_filtered[var2], normalize="columns")
-    else:
-        ct = pd.crosstab(df_filtered[var1], df_filtered[var2])
+        if normalize == "Row":
+            ct = pd.crosstab(df_filtered[var1], df_filtered[var2], normalize="index")
+        elif normalize == "Column":
+            ct = pd.crosstab(df_filtered[var1], df_filtered[var2], normalize="columns")
+        else:
+            ct = pd.crosstab(df_filtered[var1], df_filtered[var2])
 
-    st.dataframe(ct)
+        st.dataframe(ct)
 
-    fig = px.imshow(ct, text_auto=True, aspect="auto")
-    st.plotly_chart(fig)
+        fig = px.imshow(ct, text_auto=True, aspect="auto")
+        st.plotly_chart(fig)
+
 
     # -----------------------
     # TAB 3: Descriptives
